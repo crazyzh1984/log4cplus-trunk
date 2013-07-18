@@ -651,6 +651,11 @@ DailyRollingFileAppender::init(DailyRollingFileSchedule sch)
     this->schedule = sch;
 
     Time now = Time::gettimeofday();
+    helpers::FileInfo fi;
+    if (helpers::getFileInfo(&fi, filename) == 0)
+    {
+        now = fi.mtime;
+    }
     now.usec(0);
     struct tm time;
     now.localtime(&time);
@@ -715,7 +720,9 @@ DailyRollingFileAppender::~DailyRollingFileAppender()
 void
 DailyRollingFileAppender::close()
 {
-    rollover();
+    if (maxBackupIndex > 0) {
+        rollover();
+    }
     FileAppender::close();
 }
 
