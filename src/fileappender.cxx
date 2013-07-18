@@ -35,6 +35,7 @@
 #include <sstream>
 #include <cstdio>
 #include <stdexcept>
+#include <vector>
 
 #if defined (__BORLANDC__)
 // For _wrename() and _wremove() on Windows.
@@ -45,6 +46,11 @@
 #include <errno.h>
 #endif
 
+#if defined (_WIN32)
+#  include <log4cplus/dirent/dirent.h>
+#else
+#  include <dirent.h>
+#endif
 
 namespace log4cplus
 {
@@ -185,6 +191,95 @@ rolloverFiles(const tstring& filename, unsigned int maxBackupIndex)
         loglog_renaming_result (*loglog, source, target, ret);
     }
 } // end rolloverFiles()
+
+
+static
+void
+rolloverFilesDaily(const tstring& filepath, unsigned int maxBackup)
+{
+    helpers::LogLog * loglog = helpers::LogLog::getLogLog();
+
+    // get log dir from log filename
+    tstring::size_type idxSepWin = filepath.rfind('\\');
+    tstring::size_type idxSepUnix = filepath.rfind('/');
+    if (idxSepWin == tstring::npos)
+    {
+        idxSepWin = idxSepUnix;
+    }
+    else
+    {
+        if (idxSepUnix != tstring::npos && idxSepWin < idxSepUnix)
+        {
+            idxSepWin = idxSepUnix;
+        }
+    }
+    tstring logdir;
+    tstring logfile = filepath;
+    if (idxSepWin != tstring::npos)
+    {
+        logdir = filepath.substr(0, idxSepWin + 1); // include seperator char
+        logfile = filepath.substr(idxSepWin + 1);
+    }
+    if (logfile.empty())
+    {
+        return;
+    }
+
+    // Delete the oldest file
+    DIR *dir;
+    struct dirent *ent;
+    if ((dir = opendir (LOG4CPLUS_TSTRING_TO_STRING(logdir).c_str())) != NULL) {
+        std::vector<tstring> logfiles;
+        tostringstream buffer;
+
+        /* print all the files and directories within directory */
+        while ((ent = readdir (dir)) != NULL) {
+            if (ent->d_type != S_IFREG)
+            {
+                continue;
+            }
+            buffer.str(LOG4CPLUS_TEXT(""));
+            buffer << ent->d_name;
+            tstring const fname(buffer.str ());
+            if (fname.length() == logfile.length()
+                || fname.find(logfile) == tstring::npos)
+            {
+                continue;
+            }
+
+            logfiles.push_back(fname);
+        }
+        closedir (dir);
+
+        sort(logfiles.begin(), logfiles.end());
+
+        std::vector<tstring>::reverse_iterator ritlf = logfiles.rbegin();
+        for (; ritlf != logfiles.rend(); ++ritlf)
+        {
+            if (maxBackup <= 0)
+            {
+                break;
+            }
+            tstring fname = *ritlf;
+            if (fname.find_last_of('.') == logfile.length())
+            {
+                maxBackup--;
+            }
+            // else: skip files in single logging period
+        }
+        for (; ritlf != logfiles.rend(); ++ritlf)
+        {
+            tstring fname = logdir;
+            fname.append( *ritlf );
+            long ret = file_remove(fname);
+
+            tostringstream oss;
+            oss << LOG4CPLUS_TEXT("Remove old log file: ") << fname
+                << LOG4CPLUS_TEXT("; result=") << ret;
+            loglog->debug( oss.str() );
+        }
+    }
+} // end rolloverFilesDaily()
 
 
 static
@@ -600,9 +695,10 @@ RollingFileAppender::rollover(bool alreadyLocked)
 
 DailyRollingFileAppender::DailyRollingFileAppender(
     const tstring& filename_, DailyRollingFileSchedule schedule_,
-    bool immediateFlush_, int maxBackupIndex_, bool createDirs_)
+    bool immediateFlush_, int maxBackupIndex_, int maxBackup_, bool createDirs_)
     : FileAppender(filename_, std::ios_base::app, immediateFlush_, createDirs_)
     , maxBackupIndex(maxBackupIndex_)
+    , maxBackup(maxBackup_)
 {
     init(schedule_);
 }
@@ -613,6 +709,7 @@ DailyRollingFileAppender::DailyRollingFileAppender(
     const Properties& properties)
     : FileAppender(properties, std::ios_base::app)
     , maxBackupIndex(10)
+    , maxBackup(10)
 {
     DailyRollingFileSchedule theSchedule = DAILY;
     tstring scheduleStr (helpers::toUpper (
@@ -639,6 +736,7 @@ DailyRollingFileAppender::DailyRollingFileAppender(
     }
     
     properties.getInt (maxBackupIndex, LOG4CPLUS_TEXT("MaxBackupIndex"));
+    properties.getInt (maxBackup, LOG4CPLUS_TEXT("MaxBackup"));
 
     init(theSchedule);
 }
@@ -774,6 +872,7 @@ DailyRollingFileAppender::rollover(bool alreadyLocked)
     // E.g. if "log.2009-11-07.1" already exists we rename it
     // to "log.2009-11-07.2", etc.
     rolloverFiles(scheduledFilename, maxBackupIndex);
+    rolloverFilesDaily(filename, maxBackup);
 
     // Do not overwriet the newest file either, e.g. if "log.2009-11-07"
     // already exists rename it to "log.2009-11-07.1"

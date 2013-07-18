@@ -262,6 +262,11 @@ namespace log4cplus
      * single logging period; e.g. how many <tt>log.2009-11-07.1</tt>,
      * <tt>log.2009-11-07.2</tt> etc. files are kept.</dd>
      *
+     * <dt><tt>MaxBackup</tt></dt>
+     * <dd>This property limits how many backup files are kept for
+     * entire logging period; e.g. how many <tt>log.2009-11-07</tt>,
+     * <tt>log.2009-11-08</tt> etc. files are kept.</dd>
+     *
      * </dl>
      */
     class LOG4CPLUS_EXPORT DailyRollingFileAppender : public FileAppender {
@@ -271,6 +276,7 @@ namespace log4cplus
                                  DailyRollingFileSchedule schedule = DAILY,
                                  bool immediateFlush = true,
                                  int maxBackupIndex = 10,
+                                 int maxBackup = 10,
                                  bool createDirs = false);
         DailyRollingFileAppender(const log4cplus::helpers::Properties& properties);
 
@@ -291,6 +297,7 @@ namespace log4cplus
         log4cplus::tstring scheduledFilename;
         log4cplus::helpers::Time nextRolloverTime;
         int maxBackupIndex;
+        int maxBackup;
 
     private:
         LOG4CPLUS_PRIVATE void init(DailyRollingFileSchedule schedule);

@@ -387,6 +387,9 @@
     <ClInclude Include="..\include\log4cplus\thread\impl\syncprims-cxx11.h">
       <Filter>thread\impl</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\log4cplus\dirent\dirent.h">
+      <Filter>config</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="log4cplus.props" />
